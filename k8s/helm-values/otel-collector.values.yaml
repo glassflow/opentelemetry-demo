@@ -4,8 +4,8 @@ mode: daemonset
 
 # Use upstream contrib collector image to ensure all OTLP services (metrics/logs/traces) are available
 image:
-  repository: ghcr.io/glassflow/opentelemetry-collector-glassflow
-  tag: "latest"
+  repository: ashishglassflow/otelcontribcol
+  tag: "v1.0.0"
 
 replicaCount: 1
 
