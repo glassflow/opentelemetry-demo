@@ -1,4 +1,4 @@
-.PHONY: repos ns install telemetry uninstall status pf-hyperdx pf-glassflow deploy-pipelines create-clickhouse-tables ensure-kafka-consumer-offsets
+.PHONY: repos ns install telemetry uninstall status pf-hyperdx pf-glassflow deploy-pipelines create-clickhouse-tables ensure-kafka-consumer-offsets create-kafka-topics
 
 # Use a single shell per recipe to allow multi-line loops/conditionals
 SHELL := /bin/bash
@@ -9,6 +9,12 @@ KAFKA_NS ?= kafka
 OTEL_NS ?= otel
 GLASSFLOW_NS ?= glassflow
 HYPERDX_NS ?= hyperdx
+
+# Chart releases
+KAFKA_CHART_RELEASE ?= kafka
+OTEL_CHART_RELEASE ?= opentelemetry-collector
+GLASSFLOW_CHART_RELEASE ?= glassflow
+HYPERDX_CHART_RELEASE ?= hyperdx
 
 HELM_VALUES := k8s/helm-values
 
@@ -39,16 +45,16 @@ ns-remove:
 
 install:
 	# Kafka (Bitnami)
-	helm install kafka oci://registry-1.docker.io/bitnamicharts/kafka -n $(KAFKA_NS) -f $(HELM_VALUES)/kafka.values.yaml --create-namespace=false || true
+	helm install $(KAFKA_CHART_RELEASE) oci://registry-1.docker.io/bitnamicharts/kafka -n $(KAFKA_NS) -f $(HELM_VALUES)/kafka.values.yaml --create-namespace=false || true
 	
 	# OpenTelemetry Collector
-	helm install otel opentelemetry/opentelemetry-collector -n $(OTEL_NS) -f $(HELM_VALUES)/otel-collector.values.yaml --create-namespace=false || true
+	helm install $(OTEL_CHART_RELEASE) opentelemetry/opentelemetry-collector -n $(OTEL_NS) -f $(HELM_VALUES)/otel-collector.values.yaml --create-namespace=false || true
 	
 	# Glassflow
-	helm install glassflow glassflow/glassflow-etl -n $(GLASSFLOW_NS) -f $(HELM_VALUES)/glassflow.values.yaml --create-namespace=false || true
+	helm install $(GLASSFLOW_CHART_RELEASE) glassflow/glassflow-etl -n $(GLASSFLOW_NS) -f $(HELM_VALUES)/glassflow.values.yaml --create-namespace=false || true
 	
 	# HyperDX (with embedded ClickHouse)
-	helm install hyperdx hyperdx/hdx-oss-v2 -n $(HYPERDX_NS) -f $(HELM_VALUES)/hyperdx.values.yaml --create-namespace=false || true
+	helm install $(HYPERDX_CHART_RELEASE) hyperdx/hdx-oss-v2 -n $(HYPERDX_NS) -f $(HELM_VALUES)/hyperdx.values.yaml --create-namespace=false || true
 
 telemetry:
 	kubectl apply -f k8s/telemetry/
@@ -57,10 +63,10 @@ telemetry-remove:
 	kubectl delete -f k8s/telemetry/ || true
 
 uninstall:
-	-helm uninstall hyperdx -n $(HYPERDX_NS)
-	-helm uninstall glassflow -n $(GLASSFLOW_NS)
-	-helm uninstall otel -n $(OTEL_NS)
-	-helm uninstall kafka -n $(KAFKA_NS)
+	-helm uninstall $(HYPERDX_CHART_RELEASE) -n $(HYPERDX_NS)
+	-helm uninstall $(GLASSFLOW_CHART_RELEASE) -n $(GLASSFLOW_NS)
+	-helm uninstall $(OTEL_CHART_RELEASE) -n $(OTEL_NS)
+	-helm uninstall $(KAFKA_CHART_RELEASE) -n $(KAFKA_NS)
 
 status:
 	kubectl get pods -n $(KAFKA_NS)
@@ -69,15 +75,18 @@ status:
 	kubectl get pods -n $(HYPERDX_NS)
 
 pf-hyperdx:
-	kubectl -n $(HYPERDX_NS) port-forward svc/hyperdx-hdx-oss-v2-app 3000:3000
+	kubectl -n $(HYPERDX_NS) port-forward svc/$(HYPERDX_CHART_RELEASE)-hdx-oss-v2-app 3000:3000
 
 pf-glassflow-ui:
-	kubectl -n $(GLASSFLOW_NS) port-forward svc/glassflow-api 8080:8080
+	kubectl -n $(GLASSFLOW_NS) port-forward svc/$(GLASSFLOW_CHART_RELEASE)-ui 8080:8080 >/dev/null 2>&1 & echo $$! > /tmp/gf_ui.pid
+
+pf-glassflow-api:
+	kubectl -n $(GLASSFLOW_NS) port-forward svc/$(GLASSFLOW_CHART_RELEASE)-api 8081:8081 >/dev/null 2>&1 & echo $$! > /tmp/gf_api.pid
 
 deploy-pipelines:
 	# Port-forward Glassflow API and deploy all pipelines
 	set -e; \
-	( kubectl -n $(GLASSFLOW_NS) port-forward svc/glassflow-api 8081:8081 >/dev/null 2>&1 & echo $$! > /tmp/gf_pf.pid ); \
+	( kubectl -n $(GLASSFLOW_NS) port-forward svc/$(GLASSFLOW_CHART_RELEASE)-api 8081:8081 >/dev/null 2>&1 & echo $$! > /tmp/gf_pf.pid ); \
 	sleep 3; \
 	for f in glassflow-pipelines/*.json; do \
 		echo "Deploying $$f"; \
@@ -91,37 +100,56 @@ deploy-pipelines:
 
 create-clickhouse-tables:
 	# Create OpenTelemetry tables in ClickHouse
-	kubectl exec -i -n $(HYPERDX_NS) deploy/hyperdx-hdx-oss-v2-clickhouse -- \
+	kubectl exec -i -n $(HYPERDX_NS) deploy/$(HYPERDX_CHART_RELEASE)-hdx-oss-v2-clickhouse -- \
 		clickhouse-client --multiquery < clickhouse/create_otel_tables.sql
 
 ensure-kafka-consumer-offsets:
 	# Ensure __consumer_offsets topic exists (required for consumer groups)
 	@echo "Checking if __consumer_offsets topic exists..."
-	@if kubectl exec -n $(KAFKA_NS) kafka-controller-0 -- \
-		kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null | grep -q "__consumer_offsets"; then \
+	@if kubectl exec -n $(KAFKA_NS) $(KAFKA_CHART_RELEASE)-controller-0 -- \
+		kafka-topics.sh --bootstrap-server $(KAFKA_CHART_RELEASE).$(KAFKA_NS).svc.cluster.local:9092 --list 2>/dev/null | grep -q "__consumer_offsets"; then \
 		echo "__consumer_offsets topic already exists"; \
 	else \
 		echo "Creating __consumer_offsets topic..."; \
-		kubectl exec -n $(KAFKA_NS) kafka-controller-0 -- \
-			kafka-topics.sh --bootstrap-server localhost:9092 --create \
+		kubectl exec -n $(KAFKA_NS) $(KAFKA_CHART_RELEASE)-controller-0 -- \
+			kafka-topics.sh --bootstrap-server $(KAFKA_CHART_RELEASE).$(KAFKA_NS).svc.cluster.local:9092 --create \
 			--topic __consumer_offsets --partitions 50 --replication-factor 1 \
 			--config cleanup.policy=compact 2>&1 || true; \
 	fi
+
+create-kafka-topics:
+	# Create all OpenTelemetry Kafka topics
+	@echo "Creating Kafka topics..."
+	@for topic in otel-logs otel-traces otel-metrics-sum otel-metrics-gauge otel-metrics-histogram otel-metrics-summary otel-metrics-exponential-histogram; do \
+		echo "Checking if topic $$topic exists..."; \
+		if kubectl exec -n $(KAFKA_NS) $(KAFKA_CHART_RELEASE)-controller-0 -- \
+			kafka-topics.sh --bootstrap-server $(KAFKA_CHART_RELEASE).$(KAFKA_NS).svc.cluster.local:9092 --list 2>/dev/null | grep -q "$$topic"; then \
+			echo "Topic $$topic already exists"; \
+		else \
+			echo "Creating topic $$topic..."; \
+			kubectl exec -n $(KAFKA_NS) $(KAFKA_CHART_RELEASE)-controller-0 -- \
+				kafka-topics.sh --bootstrap-server $(KAFKA_CHART_RELEASE).$(KAFKA_NS).svc.cluster.local:9092 --create \
+				--topic $$topic --partitions 3 --replication-factor 1 2>&1 || true; \
+		fi; \
+	done
 
 deploy-stack:
 	# Prepare repos, namespaces and install stack
 	$(MAKE) repos ns install
 
 	# Wait for Kafka to be ready and ensure __consumer_offsets topic exists
-	kubectl rollout status -n $(KAFKA_NS) statefulset/kafka-controller --timeout=5m
+	kubectl rollout status -n $(KAFKA_NS) statefulset/$(KAFKA_CHART_RELEASE)-controller --timeout=5m
 	$(MAKE) ensure-kafka-consumer-offsets
 
+	# Make sure Kafka topics are created
+	$(MAKE) create-kafka-topics
+
 	# Wait for ClickHouse to be ready
-	kubectl rollout status -n $(HYPERDX_NS) deploy/hyperdx-hdx-oss-v2-clickhouse --timeout=5m
+	kubectl rollout status -n $(HYPERDX_NS) deploy/$(HYPERDX_CHART_RELEASE)-hdx-oss-v2-clickhouse --timeout=5m
 	$(MAKE) create-clickhouse-tables
 
 	# Wait for GlassFlow API to be ready
-	kubectl rollout status -n $(GLASSFLOW_NS) deploy/glassflow-api --timeout=5m
+	kubectl rollout status -n $(GLASSFLOW_NS) deploy/$(GLASSFLOW_CHART_RELEASE)-api --timeout=5m
 	$(MAKE) deploy-pipelines
 
 	# Deploy telemetry generators
