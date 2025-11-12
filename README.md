@@ -45,3 +45,8 @@ TelemetryGen → OTel Collector → Kafka → Glassflow → ClickHouse ← Hyper
 ## Documentation
 
 For detailed step-by-step instructions, data flow explanation, and troubleshooting, see [GUIDE.md](GUIDE.md).
+
+## References
+
+- [Pipeline Configuration](https://docs.glassflow.dev/configuration/pipeline-json-reference)
+- [GlassFlow Otel Exporter](https://github.com/glassflow/opentelemetry-collector-contrib/tree/main/exporter/glassflowexporter)
