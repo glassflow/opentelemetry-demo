@@ -12,7 +12,7 @@ spec:
           image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:latest
           args:
             - metrics
-            - --otlp-endpoint=otel-opentelemetry-collector.otel.svc.cluster.local:4317
+            - --otlp-endpoint=opentelemetry-collector.otel.svc.cluster.local:4317
             - --otlp-insecure
             - --metric-type=Gauge
             - --otlp-metric-name=gen-gauge

@@ -3,17 +3,21 @@
   "name": "Metrics Histogram Pipeline",
   "source": {
     "type": "kafka",
+    "provider": "custom",
     "connection_params": {
       "brokers": [
         "kafka.kafka.svc.cluster.local:9092"
       ],
       "protocol": "PLAINTEXT",
+      "sasl_tls_enable": false,
       "skip_auth": true
     },
     "topics": [
       {
         "consumer_group_initial_offset": "latest",
         "name": "otel-metrics-histogram",
+        "id": "otel-metrics-histogram",
+        "replicas": 1,
         "schema": {
           "type": "json",
           "fields": [
@@ -133,9 +137,6 @@
       }
     ]
   },
-  "join": {
-    "enabled": false
-  },
   "sink": {
     "type": "clickhouse",
     "host": "hyperdx-hdx-oss-v2-clickhouse.hyperdx.svc.cluster.local",
@@ -148,6 +149,7 @@
     "max_batch_size": 1000,
     "max_delay_time": "30s",
     "table": "otel_metrics_histogram",
+    "skip_certificate_verification": false,
     "table_mapping": [
       {
         "source_id": "otel-metrics-histogram",
