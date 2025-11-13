@@ -17,11 +17,7 @@ image:
 rbac:
   create: true
 
-overrideConfiguration:
-  defaultReplicationFactor: 1
-
 controller:
-  replicaCount: 1
   resources:
     limits:
       cpu: 800m
@@ -30,13 +26,3 @@ controller:
       cpu: 200m
       memory: 512Mi
   automountServiceAccountToken: true
-
-brokers:
-  replicaCount: 1
-  resources:
-    limits:
-      cpu: 800m
-      memory: 2Gi
-    requests:
-      cpu: 200m
-      memory: 512Mi

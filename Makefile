@@ -1,4 +1,4 @@
-.PHONY: repos ns install telemetry uninstall status pf-hyperdx pf-glassflow deploy-pipelines create-clickhouse-tables ensure-kafka-consumer-offsets create-kafka-topics
+.PHONY: repos ns install telemetry uninstall status pf-hyperdx pf-glassflow deploy-pipelines create-clickhouse-tables create-kafka-topics
 
 # Use a single shell per recipe to allow multi-line loops/conditionals
 SHELL := /bin/bash
@@ -103,20 +103,6 @@ create-clickhouse-tables:
 	kubectl exec -i -n $(HYPERDX_NS) deploy/$(HYPERDX_CHART_RELEASE)-hdx-oss-v2-clickhouse -- \
 		clickhouse-client --multiquery < clickhouse/create_otel_tables.sql
 
-ensure-kafka-consumer-offsets:
-	# Ensure __consumer_offsets topic exists (required for consumer groups)
-	@echo "Checking if __consumer_offsets topic exists..."
-	@if kubectl exec -n $(KAFKA_NS) $(KAFKA_CHART_RELEASE)-controller-0 -- \
-		kafka-topics.sh --bootstrap-server $(KAFKA_CHART_RELEASE).$(KAFKA_NS).svc.cluster.local:9092 --list 2>/dev/null | grep -q "__consumer_offsets"; then \
-		echo "__consumer_offsets topic already exists"; \
-	else \
-		echo "Creating __consumer_offsets topic..."; \
-		kubectl exec -n $(KAFKA_NS) $(KAFKA_CHART_RELEASE)-controller-0 -- \
-			kafka-topics.sh --bootstrap-server $(KAFKA_CHART_RELEASE).$(KAFKA_NS).svc.cluster.local:9092 --create \
-			--topic __consumer_offsets --partitions 50 --replication-factor 1 \
-			--config cleanup.policy=compact 2>&1 || true; \
-	fi
-
 create-kafka-topics:
 	# Create all OpenTelemetry Kafka topics
 	@echo "Creating Kafka topics..."
@@ -137,11 +123,8 @@ deploy-stack:
 	# Prepare repos, namespaces and install stack
 	$(MAKE) repos ns install
 
-	# Wait for Kafka to be ready and ensure __consumer_offsets topic exists
+	# Wait for Kafka to be ready and make sure Kafka topics are created
 	kubectl rollout status -n $(KAFKA_NS) statefulset/$(KAFKA_CHART_RELEASE)-controller --timeout=5m
-	$(MAKE) ensure-kafka-consumer-offsets
-
-	# Make sure Kafka topics are created
 	$(MAKE) create-kafka-topics
 
 	# Wait for ClickHouse to be ready
