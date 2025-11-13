@@ -4,7 +4,7 @@ Kubernetes-based telemetry pipeline: Kafka → OpenTelemetry Collector → Glass
 
 This repository installs a complete observability stack on Kubernetes, including Kafka (message broker), OpenTelemetry Collector (telemetry processing), Glassflow (data pipeline orchestrator), ClickHouse (time-series database), and HyperDX (observability UI). Telemetry generators simulate logs, metrics, and traces for testing.
 
-[![Demo Video](https://imgur.com/a/1kQmFos)](https://www.youtube.com/embed/faabKz3npeo?si=yGZdQgklJwdPwD2a)
+[![Demo Video](https://i.imgur.com/eggp799.png)](https://www.youtube.com/embed/faabKz3npeo?si=yGZdQgklJwdPwD2a)
 
 ## Requirements
 
