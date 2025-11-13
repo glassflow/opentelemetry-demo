@@ -17,6 +17,6 @@ spec:
             - --metric-type=Sum
             - --aggregation-temporality=cumulative
             - --otlp-metric-name=gen-sum
-            - --duration=5m
-            - --rate=5
+            - --duration=50m
+            - --rate=50
 

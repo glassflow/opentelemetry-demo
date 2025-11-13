@@ -16,6 +16,6 @@ spec:
             - --otlp-insecure
             - --metric-type=ExponentialHistogram
             - --otlp-metric-name=gen-exponential-histogram
-            - --duration=5m
-            - --rate=5
+            - --duration=50m
+            - --rate=50
 

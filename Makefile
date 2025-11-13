@@ -127,7 +127,7 @@ deploy-stack:
 	kubectl rollout status -n $(KAFKA_NS) statefulset/$(KAFKA_CHART_RELEASE)-controller --timeout=5m
 	$(MAKE) create-kafka-topics
 
-	# Wait for ClickHouse to be ready
+	# Wait for HyperDX and ClickHouse to be ready
 	kubectl rollout status -n $(HYPERDX_NS) deploy/$(HYPERDX_CHART_RELEASE)-hdx-oss-v2-clickhouse --timeout=5m
 	$(MAKE) create-clickhouse-tables
 

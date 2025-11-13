@@ -14,7 +14,7 @@ spec:
             - traces
             - --otlp-endpoint=opentelemetry-collector.otel.svc.cluster.local:4317
             - --otlp-insecure
-            - --duration=5m
-            - --rate=5
+            - --duration=50m
+            - --rate=50
 
 

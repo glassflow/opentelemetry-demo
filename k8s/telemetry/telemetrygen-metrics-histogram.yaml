@@ -16,6 +16,6 @@ spec:
             - --otlp-insecure
             - --metric-type=Histogram
             - --otlp-metric-name=gen-histogram
-            - --duration=5m
-            - --rate=5
+            - --duration=50m
+            - --rate=50
 
